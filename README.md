@@ -447,21 +447,20 @@ Development mode uses a local principal. Production mode forbids development aut
 
 ---
 
-# Quick start
+# Install and run locally
 
 ## Requirements
 
-Install:
+The recommended local installation uses Docker so PostgreSQL, Python, Node.js, and application dependencies stay isolated. Install:
 
 - Docker 25+
 - Docker Compose v2
 - Git
 
-Optional for non-container development:
+For host-based development and production deployment, also install the tools needed for that workflow:
 
 - Python 3.12
 - Node.js 22
-- PostgreSQL 17
 - Terraform 1.8+
 - Google Cloud CLI
 
@@ -478,7 +477,7 @@ cd redtag
 cp .env.example .env
 ```
 
-The default `.env.example` uses development authentication and disables real AI and Pub/Sub so the complete deterministic demo can run locally without cloud credentials.
+The checked-in defaults use development authentication, local evidence storage, deterministic AI behavior, and simulated notifications. No Google Cloud credentials are required for this mode. Do not reuse these defaults outside local development.
 
 ## 3. Start
 
@@ -486,12 +485,18 @@ The default `.env.example` uses development authentication and disables real AI 
 make up
 ```
 
-This starts:
+This builds the images, starts the services in the background, and applies Alembic database migrations before the API accepts traffic:
 
 - PostgreSQL on `localhost:5432`
 - FastAPI on `http://localhost:8080`
 - Next.js on `http://localhost:3000`
 - Outbox worker
+
+Follow startup logs when diagnosing a service that is not ready:
+
+```bash
+make logs
+```
 
 ## 4. Seed the synthetic enterprise
 
@@ -511,13 +516,37 @@ The dataset creates:
 - one safety incident
 - one intentionally malicious supplier message security event
 
-## 5. Open RedTag
+## 5. Verify the installation
+
+```bash
+curl -fsS http://localhost:8080/api/v1/health
+curl -fsS http://localhost:8080/api/v1/ready
+make smoke
+```
+
+The readiness response should report `{"ready":true,"database":"ok"}`, and the smoke test should print the API health response and a nonzero seeded incident count.
+
+## 6. Use RedTag
 
 ```text
 Web:     http://localhost:3000
 API:     http://localhost:8080/api/v1
 OpenAPI: http://localhost:8080/docs
 ```
+
+Open the web application, select the seeded safety incident, inspect its evidence and proposed recall scope, and use Recall Director autopilot to advance the safe workflow. Guarded Autonomy stops before high-impact containment so an approver can review the proposed strategy. The [canonical recall walkthrough](#run-the-canonical-recall) also shows every API operation individually.
+
+## 7. Stop or reset the platform
+
+```bash
+# Stop services while preserving the PostgreSQL volume
+make down
+
+# Delete local containers and database data for a clean start
+docker compose down -v
+```
+
+After a reset, run `make up` and `make seed` again.
 
 ---
 
@@ -911,40 +940,82 @@ Production deployments should never use `create_all()` outside initial/bootstrap
 
 # Testing
 
-## Backend
+Run commands from the repository root unless a step explicitly changes directory.
+
+## Backend setup
 
 ```bash
-pip install -e ".[dev]"
-PYTHONPATH=services/api pytest
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
 ```
 
-## Static checks
+Start PostgreSQL and configure the host-based test process to use its exposed port:
+
+```bash
+docker compose up -d postgres
+export DATABASE_URL=postgresql+psycopg://redtag:redtag@localhost:5432/redtag
+export AUTH_MODE=dev
+export JWT_SECRET=test-only
+```
+
+## Reproduce backend CI
 
 ```bash
 ruff check services tests scripts
 mypy services/api/app --ignore-missing-imports
+alembic -c services/api/alembic.ini upgrade head
+PYTHONPATH=services/api python scripts/seed_demo.py
+python -m pytest
 ```
 
-## Web build
+Run one test module or one test by node ID while iterating:
+
+```bash
+python -m pytest tests/unit/test_policy.py
+python -m pytest tests/unit/test_policy.py::test_bulk_export_denied
+```
+
+Test groups are organized under `tests/unit`, `tests/integration`, `tests/security`, and `tests/e2e`.
+
+## Validate the web application
+
+Frontend commands must run inside `apps/web`; there is no root `package.json`.
 
 ```bash
 cd apps/web
 npm install
+npm run typecheck
 npm run build
+cd ../..
 ```
 
-## Docker build
+## Validate containers and the running stack
 
 ```bash
 docker compose build
+make up
+make seed
+make smoke
 ```
 
-## Smoke test
+The same checks run in GitHub Actions through `.github/workflows/ci.yml`.
 
-With the stack running:
+## Test command summary
 
 ```bash
-make smoke
+make test       # Python test suite; host dependencies must be installed
+make lint       # Ruff checks
+make typecheck  # Backend mypy checks
+make build      # Build all Docker Compose images
+make smoke      # Exercise a running and seeded API
+```
+
+To collect Python coverage:
+
+```bash
+python -m pytest --cov=services/api/app --cov-report=term-missing
 ```
 
 ---
@@ -972,9 +1043,104 @@ See [`docs/security/THREAT_MODEL.md`](docs/security/THREAT_MODEL.md).
 
 # Google Cloud deployment
 
-The repository ships Terraform under `infra/terraform`.
+The production baseline deploys RedTag to Google Cloud Run. Cloud SQL stores operational state; Cloud Storage stores evidence; Pub/Sub drives durable workflow commands; Secret Manager holds the database URL; and Artifact Registry stores immutable API and web images.
 
-It provisions the base production platform:
+## Production prerequisites
+
+Before deployment, prepare:
+
+- a Google Cloud project with billing enabled
+- permission to manage project APIs, IAM, Cloud Run, Cloud SQL, Storage, Pub/Sub, Secret Manager, and Artifact Registry
+- Terraform 1.8+ and the Google Cloud CLI
+- a Firebase or Google Identity Platform web application
+- an intended production web origin, tenant ID, region, and immutable release tag
+
+Authenticate and select the target project:
+
+```bash
+export PROJECT_ID=your-gcp-project
+export REGION=us-central1
+export ENVIRONMENT=prod
+export RELEASE_TAG=1.0.0
+export REPOSITORY=redtag-${ENVIRONMENT}-containers
+
+gcloud auth login
+gcloud auth application-default login
+gcloud config set project "$PROJECT_ID"
+gcloud services enable \
+  serviceusage.googleapis.com \
+  cloudresourcemanager.googleapis.com \
+  cloudbuild.googleapis.com
+```
+
+Use a dedicated deployment identity in CI instead of a personal account. Production teams should also configure a remote, access-controlled Terraform state backend before applying shared infrastructure.
+
+## 1. Configure Terraform
+
+```bash
+cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars
+```
+
+Edit `terraform.tfvars` and replace every example value. In particular, set:
+
+- `project_id`, `region`, and `environment`
+- `api_image` and `web_image` using the release tag that will be built below
+- `web_origin` and `default_tenant_id`
+- `jwt_issuer`, `jwt_audience`, and `jwks_url` for the production identity provider
+- `model_armor_template` if cloud evidence screening is enabled
+
+For Firebase, the issuer is `https://securetoken.google.com/PROJECT_ID`, the audience is the Firebase project ID, and the JWKS URL is already illustrated in `terraform.tfvars.example`.
+
+## 2. Bootstrap Artifact Registry
+
+Terraform manages the container repository, but that repository must exist before Cloud Build can push the first images:
+
+```bash
+terraform init
+terraform plan -target=google_artifact_registry_repository.redtag
+terraform apply -target=google_artifact_registry_repository.redtag
+cd ../..
+```
+
+The targeted apply also enables the Google APIs on which the repository depends.
+
+## 3. Build and push immutable images
+
+Export the Firebase web application values without committing them to the repository:
+
+```bash
+export TENANT_ID=your-tenant
+export FIREBASE_API_KEY=your-firebase-api-key
+export FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+export FIREBASE_PROJECT_ID="$PROJECT_ID"
+export FIREBASE_APP_ID=your-firebase-app-id
+
+gcloud builds submit . \
+  --config cloudbuild.yaml \
+  --substitutions="_REGION=${REGION},_REPOSITORY=${REPOSITORY},_TAG=${RELEASE_TAG},_AUTH_MODE=oidc,_TENANT_ID=${TENANT_ID},_FIREBASE_API_KEY=${FIREBASE_API_KEY},_FIREBASE_AUTH_DOMAIN=${FIREBASE_AUTH_DOMAIN},_FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID},_FIREBASE_APP_ID=${FIREBASE_APP_ID}"
+```
+
+The resulting image values for `terraform.tfvars` are:
+
+```text
+api_image = "REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/api:RELEASE_TAG"
+web_image = "REGION-docker.pkg.dev/PROJECT_ID/REPOSITORY/web:RELEASE_TAG"
+```
+
+Do not use `latest` for a production rollout; an immutable tag makes review and rollback deterministic.
+
+## 4. Plan and deploy the platform
+
+```bash
+cd infra/terraform
+terraform fmt -check
+terraform validate
+terraform plan -out=tfplan
+terraform apply tfplan
+```
+
+Terraform provisions:
 
 - required Google APIs
 - service identities
@@ -989,48 +1155,51 @@ It provisions the base production platform:
 - Model Armor API and runtime configuration
 - IAM roles required for Cloud SQL, Storage, Pub/Sub, Vertex AI, and Model Armor
 
-## 1. Bootstrap the container repository
-
-The Terraform configuration manages Artifact Registry. On a new project, create that resource first so images can be pushed before Cloud Run is created:
+## 5. Apply database migrations
 
 ```bash
-cd infra/terraform
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform apply -target=google_artifact_registry_repository.redtag
+MIGRATION_JOB=$(terraform output -raw migration_job)
+gcloud run jobs execute "$MIGRATION_JOB" --region "$REGION" --wait
 ```
 
-## 2. Build images
+Run migrations before directing users to the new release. Never use SQLAlchemy `create_all()` as a production migration mechanism.
 
-The repository includes `cloudbuild.yaml`, which builds and pushes both images with their correct Dockerfiles. The default production repository for `environment = "prod"` is `redtag-prod-containers`.
+## 6. Provision identity and tenant access
+
+Create the operator in Firebase or Google Identity Platform, then provision that external user ID as a RedTag membership. Run the provisioning command from an approved administrative environment with secure Cloud SQL connectivity:
 
 ```bash
-gcloud builds submit . \
-  --config cloudbuild.yaml \
-  --substitutions=_REGION=us-central1,_REPOSITORY=redtag-prod-containers,_TAG=1.0.0,_AUTH_MODE=oidc,_TENANT_ID=your-tenant,_FIREBASE_API_KEY=YOUR_KEY,_FIREBASE_AUTH_DOMAIN=YOUR_DOMAIN,_FIREBASE_PROJECT_ID=YOUR_PROJECT,_FIREBASE_APP_ID=YOUR_APP_ID
+cd ../..
+PYTHONPATH=services/api python scripts/provision_user.py \
+  --tenant-id "$TENANT_ID" \
+  --tenant-name "Your Organization" \
+  --user-id FIREBASE_UID \
+  --email operator@example.com \
+  --roles "Owner,Tenant Admin,Quality Manager,Approver"
 ```
 
-Set `api_image` and `web_image` in `terraform.tfvars` to the two image URIs produced by this build.
+The script uses `DATABASE_URL`; do not expose the Cloud SQL database publicly just to run it. Use the Cloud SQL Auth Proxy, a controlled job, or the organization's existing administrative network path.
 
-## 3. Terraform
+## 7. Verify the production release
 
 ```bash
-cd infra/terraform
-cp terraform.tfvars.example terraform.tfvars
-terraform init
-terraform plan
-terraform apply
+API_URL=$(terraform -chdir=infra/terraform output -raw api_url)
+WEB_URL=$(terraform -chdir=infra/terraform output -raw web_url)
+
+curl -fsS "${API_URL}/api/v1/health"
+curl -fsS "${API_URL}/api/v1/ready"
+printf 'RedTag web: %s\n' "$WEB_URL"
 ```
 
-## Important production wiring
+Sign in through the web URL and confirm the expected tenant, connectors, approvals, and security events are visible. Also inspect Cloud Run logs and verify the worker subscription has no growing unacknowledged-message backlog.
+
+## 8. Release updates and rollback
+
+For each release, build a new immutable tag, update `api_image` and `web_image` in `terraform.tfvars`, run `terraform plan`, apply the plan, execute the migration job, and repeat the health checks. To roll back application code, restore the previous image URIs and apply Terraform again. Database rollback requires a migration-specific recovery plan and should not be assumed safe.
+
+## Production wiring notes
 
 Terraform mounts Cloud SQL through the Cloud Run Cloud SQL integration, stores the SQLAlchemy connection URL in Secret Manager, deploys the API, web service, and outbox worker, and creates a migration job. OIDC issuer/audience/JWKS values are required Terraform inputs.
-
-After `terraform apply`, execute the migration job before serving users:
-
-```bash
-gcloud run jobs execute redtag-prod-migrate --region us-central1 --wait
-```
 
 A production rollout should additionally include:
 
