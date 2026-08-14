@@ -1,0 +1,5 @@
+Cirrus Components Quality Notice
+Supplier batch: C-771
+Component: X91 Connector
+Observed issue: thermal deformation after sustained high-current operation.
+Potentially affected production period: 2026-06-11 through 2026-06-14.

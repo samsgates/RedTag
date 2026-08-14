@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "redtag"
+version = "1.0.0"
+description = "Autonomous product recall command center"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.116.1",
+  "uvicorn[standard]==0.35.0",
+  "pydantic==2.11.7",
+  "pydantic-settings==2.10.1",
+  "sqlalchemy==2.0.43",
+  "psycopg[binary,pool]==3.2.9",
+  "alembic==1.16.4",
+  "python-multipart==0.0.20",
+  "httpx==0.28.1",
+  "tenacity==9.1.2",
+  "structlog==25.4.0",
+  "orjson==3.11.2",
+  "PyJWT[crypto]==2.10.1",
+  "google-auth==2.40.3",
+  "google-cloud-storage==3.3.0",
+  "google-cloud-pubsub==2.31.1",
+  "google-cloud-secret-manager==2.24.0",
+  "google-cloud-tasks==2.19.3",
+  "google-cloud-modelarmor==0.7.0",
+  "google-genai==2.13.0",
+  "google-adk[gcp]==2.5.0",
+  "opentelemetry-api==1.36.0",
+  "opentelemetry-sdk==1.36.0",
+  "opentelemetry-instrumentation-fastapi==0.57b0",
+  "prometheus-client==0.22.1",
+  "email-validator==2.2.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==8.4.1",
+  "pytest-cov==6.2.1",
+  "ruff==0.12.8",
+  "mypy==1.17.1",
+  "types-PyJWT==1.7.1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501", "B008"]
+
+[tool.pytest.ini_options]
+pythonpath = ["services/api"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.setuptools]
+py-modules = []
+
+[tool.mypy]
+python_version = "3.12"
+mypy_path = "services/api"
+ignore_missing_imports = true
+warn_unused_ignores = true
+

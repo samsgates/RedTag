@@ -1,0 +1,5 @@
+name: redtag-agent-fleet
+agent_directory: services/agent_runtime/app
+create_params:
+  deployment_target: agent_runtime
+  session_type: in_memory

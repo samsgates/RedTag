@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RedTag Domain Event",
+  "type": "object",
+  "required": ["event_id", "event_type", "tenant_id", "correlation_id", "timestamp", "payload"],
+  "properties": {
+    "event_id": {"type": "string"},
+    "event_type": {"type": "string"},
+    "tenant_id": {"type": "string"},
+    "incident_id": {"type": ["string", "null"]},
+    "correlation_id": {"type": "string"},
+    "causation_id": {"type": ["string", "null"]},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "payload": {"type": "object"}
+  },
+  "additionalProperties": false
+}

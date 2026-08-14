@@ -1,0 +1,16 @@
+project_id       = "your-gcp-project"
+region           = "us-central1"
+environment      = "prod"
+api_image        = "us-central1-docker.pkg.dev/your-gcp-project/redtag-prod-containers/api:1.0.0"
+web_image        = "us-central1-docker.pkg.dev/your-gcp-project/redtag-prod-containers/web:1.0.0"
+web_origin       = "https://redtag.example.com"
+default_tenant_id = "your-tenant"
+
+# Firebase / Google Identity Platform ID token validation
+jwt_issuer   = "https://securetoken.google.com/your-gcp-project"
+jwt_audience = "your-gcp-project"
+jwks_url     = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com"
+
+# Optional but recommended for the hackathon security demonstration. Create the template first.
+model_armor_location = "us-central1"
+model_armor_template = "redtag-safety"
