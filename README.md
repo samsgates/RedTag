@@ -8,6 +8,8 @@
 
 RedTag is designed for the Google Cloud All Things Agentic Hackathon and for real production-oriented enterprise engineering. It is not a chatbot wrapper. It is an event-driven operational control plane with durable state, bounded agent permissions, typed connectors, action receipts, independent verification, and a Recall Proof Graph.
 
+![RedTag layered high-level design](media_resources/howitsworks.png)
+
 ---
 
 ## Why RedTag exists
@@ -259,6 +261,8 @@ redtag/
 ---
 
 # High-level design
+
+![RedTag complete architecture diagram](media_resources/architech_diagram.png)
 
 ```text
                     +-----------------------------+
