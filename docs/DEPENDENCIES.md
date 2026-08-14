@@ -6,9 +6,9 @@ RedTag pins every direct runtime and development dependency in the repository ma
 
 | Package | Version | Purpose |
 |---|---:|---|
-| fastapi | 0.116.1 | HTTP control plane |
+| fastapi | 0.133.0 | HTTP control plane |
 | uvicorn[standard] | 0.35.0 | ASGI server |
-| pydantic | 2.11.7 | API and agent contracts |
+| pydantic | 2.12.5 | API and agent contracts |
 | pydantic-settings | 2.10.1 | environment configuration |
 | sqlalchemy | 2.0.43 | persistence and transaction layer |
 | psycopg[binary,pool] | 3.2.9 | PostgreSQL driver |
@@ -19,7 +19,7 @@ RedTag pins every direct runtime and development dependency in the repository ma
 | structlog | 25.4.0 | structured logs |
 | orjson | 3.11.2 | JSON responses |
 | PyJWT[crypto] | 2.10.1 | OIDC/JWT verification |
-| google-auth | 2.40.3 | Google credentials |
+| google-auth | 2.56.0 | Google credentials |
 | google-cloud-storage | 3.3.0 | evidence storage |
 | google-cloud-pubsub | 2.31.1 | durable workflow events |
 | google-cloud-secret-manager | 2.24.0 | secret integration support |
@@ -27,9 +27,6 @@ RedTag pins every direct runtime and development dependency in the repository ma
 | google-cloud-modelarmor | 0.7.0 | untrusted evidence screening |
 | google-genai | 2.13.0 | Gemini structured multimodal calls |
 | google-adk[gcp] | 2.5.0 | agent fleet and Agent Runtime app |
-| opentelemetry-api | 1.36.0 | tracing API |
-| opentelemetry-sdk | 1.36.0 | telemetry SDK |
-| opentelemetry-instrumentation-fastapi | 0.57b0 | FastAPI instrumentation integration |
 | prometheus-client | 0.22.1 | metrics integration |
 | email-validator | 2.2.0 | validated email fields |
 

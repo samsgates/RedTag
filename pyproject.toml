@@ -8,9 +8,9 @@ version = "1.0.0"
 description = "Autonomous product recall command center"
 requires-python = ">=3.12"
 dependencies = [
-  "fastapi==0.116.1",
+  "fastapi==0.133.0",
   "uvicorn[standard]==0.35.0",
-  "pydantic==2.11.7",
+  "pydantic==2.12.5",
   "pydantic-settings==2.10.1",
   "sqlalchemy==2.0.43",
   "psycopg[binary,pool]==3.2.9",
@@ -21,7 +21,7 @@ dependencies = [
   "structlog==25.4.0",
   "orjson==3.11.2",
   "PyJWT[crypto]==2.10.1",
-  "google-auth==2.40.3",
+  "google-auth==2.56.0",
   "google-cloud-storage==3.3.0",
   "google-cloud-pubsub==2.31.1",
   "google-cloud-secret-manager==2.24.0",
@@ -29,9 +29,6 @@ dependencies = [
   "google-cloud-modelarmor==0.7.0",
   "google-genai==2.13.0",
   "google-adk[gcp]==2.5.0",
-  "opentelemetry-api==1.36.0",
-  "opentelemetry-sdk==1.36.0",
-  "opentelemetry-instrumentation-fastapi==0.57b0",
   "prometheus-client==0.22.1",
   "email-validator==2.2.0",
 ]

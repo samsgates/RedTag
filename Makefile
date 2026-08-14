@@ -13,7 +13,7 @@ migrate:
 	docker compose run --rm api alembic -c services/api/alembic.ini upgrade head
 
 seed:
-	docker compose run --rm api python scripts/seed_demo.py
+	docker compose run --rm -e PYTHONPATH=/app api python scripts/seed_demo.py
 
 test:
 	python -m pytest
